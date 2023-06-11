@@ -29,5 +29,10 @@ class TestArXivDataset(unittest.TestCase):
         # Provide the expected last item name
         self.assertEqual(last_item, '2305/2305.20092.gz')
 
+        last_item = self.dataset[-1]
+        self.assertIsNotNone(last_item)
+        # Provide the expected last item name
+        self.assertEqual(last_item, '2305/2305.20092.gz')
+
 if __name__ == '__main__':
     unittest.main()
