@@ -31,7 +31,7 @@ class TestArXivDataset(unittest.TestCase):
 
         last_item = self.dataset[-1]
         self.assertIsNotNone(last_item)
-        # Provide the expected last item name
+        # Provide the expected last item name (negative index)
         self.assertEqual(last_item, '2305/2305.20092.gz')
 
 if __name__ == '__main__':
