@@ -9,9 +9,36 @@ import os
 import tarfile
 import gzip
 import io
+import logging
+import re
 
 import datasets
 
+def sort_by_date(filenames):
+    """Sorts a list of tar filenames by date"""
+    # Use a regular expression to parse the dates
+    pattern = re.compile(r'arXiv_src_(\d{2})(\d{2})_(\d{3})\.tar')
+
+    def get_date(filename):
+        """Extracts a date tuple from a filename"""
+        match = pattern.match(filename)
+        if match is None:
+            return 0, 0, 0  # if the filename does not match, return a dummy value
+        year, month, number = match.groups()
+        year = int(year)
+        if year < 90:  # if the year is less than 90, it is in the 2000s
+            year += 2000
+        else:  # if the year is 21 or more, it is 1900s
+            year += 1900
+        return year, int(month), int(number)
+
+    return sorted(filenames, key=get_date)
+
+# Create a custom logger
+logger = logging.getLogger(__name__)
+
+# Configure logger
+logging.basicConfig(filename='arxiv_dataset.log', format='%(asctime)s:%(levelname)s:%(message)s', level=logging.INFO)
 
 # Citation for ArXiv
 _CITATION = """Thank you to arXiv for use of its open access interoperability."""
@@ -34,7 +61,7 @@ class ArXivDataset(datasets.GeneratorBasedBuilder):
     """
 
     # Version of the dataset
-    VERSION = datasets.Version("0.0.1")
+    VERSION = datasets.Version("0.0.2")
 
     def _info(self):
         """ Returns dataset information such as features, homepage, license, and citation.
@@ -67,9 +94,11 @@ class ArXivDataset(datasets.GeneratorBasedBuilder):
         """ Generates dataset examples by iterating over tar files in the filepath and extracting relevant data.
         """
         key = 0
-        for tar in sorted(os.listdir(filepath)):
+        for tar in reversed(sort_by_date(os.listdir(filepath))):
             # Skip non-tar files and hidden files
-            if not tar.endswith(".tar") or tar.startswith("."): continue
+            if not tar.endswith(".tar") or tar.startswith("."):
+                logging.info(f"Skipped non-tar or hidden file: {tar}")
+                continue
 
             with tarfile.open(os.path.join(filepath, tar), 'r') as outer_tar:
                 # Extract the gz file into a BytesIO stream
@@ -78,8 +107,8 @@ class ArXivDataset(datasets.GeneratorBasedBuilder):
                     gz_file_data = outer_tar.extractfile(member).read()
                     gz_file_stream = io.BytesIO(gz_file_data)
 
-                    # Open the stream as a tarfile
                     try:
+                        # Open the stream as a tarfile
                         with tarfile.open(fileobj=gz_file_stream, mode='r:gz') as inner_tar:
                             # Iterate over the items in the tar file
                             for inner_member in inner_tar.getmembers():
@@ -94,6 +123,6 @@ class ArXivDataset(datasets.GeneratorBasedBuilder):
                                         "content": file_data.decode('utf-8')
                                     }
                                     key += 1
-                    except:
+                    except Exception as e:
                         # If there's an error reading a gz file, we skip it.
-                        pass
+                        logging.error(f"Error processing file: {tar}/{member.name}. Error: {str(e)}")
